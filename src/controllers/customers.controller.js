@@ -39,7 +39,7 @@ export async function postCustomer(req, res){
   try {
     const customerExists = await connection.query(
       "SELECT * FROM customers WHERE cpf = $1;",
-      [req.body.cpf]
+      [cpf]
     );
     if (customerExists.rows.length !== 0) {
       return res.status(409).send({ message: "Este cliente já existe!" });
@@ -61,7 +61,7 @@ export async function putCustomer(req, res){
   try {
     const customerExists = await connection.query(
       "SELECT * FROM customers WHERE cpf = $1;",
-      [req.body.cpf]
+      [cpf]
     );
     if (customerExists.rows.length === 0) {
       return res.status(409).send({ message: "Este cliente não existe!" });

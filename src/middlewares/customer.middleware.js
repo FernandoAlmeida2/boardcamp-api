@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
 dayjs.extend(customParseFormat);
 
-export async function customerMiddleware(req, res, next) {
+export function customerMiddleware(req, res, next) {
   const body = req.body;
   const { error } = customerSchema.validate(body, { abortEarly: false });
   if (error) {
