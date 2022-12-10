@@ -20,33 +20,24 @@ export async function getRentals(req, res) {
       rentals = await connection.query(
         'SELECT rentals.*, customers.name AS "customerName", games.name AS "gameName", games."categoryId", categories.name AS "categoryName" FROM rentals JOIN customers ON rentals."customerId" = customers.id JOIN games ON games.id = rentals."gameId" JOIN categories ON categories.id = games."categoryId";'
       );
-    rentals.rows.forEach(
-      ({
-        id,
-        customerId,
-        gameId,
-        rentDate,
-        daysRented,
-        returnDate,
-        originalPrice,
-        delayFee,
-        customerName,
-        gameName,
-        categoryId,
-        categoryName,
-      }) =>
-        rentalsList.push({
-          id,
-          customerId,
-          gameId,
-          rentDate,
-          daysRented,
-          returnDate,
-          originalPrice,
-          delayFee,
-          customer: { id: customerId, name: customerName },
-          game: { id: gameId, name: gameName, categoryId, categoryName },
-        })
+    rentals.rows.forEach((rental) =>
+      rentalsList.push({
+        id: rental.id,
+        customerId: rental.customerId,
+        gameId: rental.gameId,
+        rentDate: rental.rentDate,
+        daysRented: rental.daysRented,
+        returnDate: rental.returnDate,
+        originalPrice: rental.originalPrice,
+        delayFee: rental.delayFee,
+        customer: { id: customerId, name: rental.customerName },
+        game: {
+          id: gameId,
+          name: rental.gameName,
+          categoryId: rental.categoryId,
+          categoryName: rental.categoryName,
+        },
+      })
     );
     res.send(rentalsList);
   } catch (err) {
@@ -63,8 +54,8 @@ export async function postRental(req, res) {
       [gameId]
     );
     const gameRentals = await connection.query(
-      'SELECT (id) FROM rentals WHERE "gameId" = $1',
-      [gameId]
+      'SELECT (id) FROM rentals WHERE "gameId" = $1 AND "returnDate" = $2;',
+      [gameId, null]
     );
     if (gameInfo.rows[0].stockTotal === gameRentals.rows.length) {
       return res
@@ -78,6 +69,64 @@ export async function postRental(req, res) {
       [customerId, gameId, rentDate, daysRented, null, originalPrice, null]
     );
     res.sendStatus(201);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+}
+
+export async function postReturnRental(req, res) {
+  const { id } = req.params;
+  try {
+    const rentalExists = await connection.query(
+      "SELECT * FROM rentals WHERE id = $1;",
+      [id]
+    );
+    if (rentalExists.rows.length === 0) {
+      return res.status(404).send({ message: "Este aluguel não existe!" });
+    }
+    if (rentalExists.rows[0].returnDate !== null) {
+      return res.status(400).send({ message: "O aluguel já foi finalizado!" });
+    }
+    const returnDate = dayjs().format("YYYY-MM-DD");
+    const delayedDays = dayjs(returnDate).diff(
+      dayjs(rentalExists.rows[0].rentDate),
+      "day"
+    );
+    let delayFee;
+    if (delayedDays <= 0) {
+      delayFee = 0;
+    } else {
+      delayFee =
+        (delayedDays * rentalExists.rows[0].originalPrice) /
+        rentalExists.rows[0].daysRented;
+    }
+    await connection.query(
+      'UPDATE rentals SET "returnDate" = $1, "delayFee" = $2 WHERE id = $3;',
+      [returnDate, delayFee, id]
+    );
+    res.sendStatus(200);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+}
+
+export async function deleteRental(req, res) {
+  const { id } = req.params;
+  try {
+    const rentalExists = await connection.query(
+      "SELECT * FROM rentals WHERE id = $1;",
+      [id]
+    );
+    if (rentalExists.rows.length === 0) {
+      return res.status(404).send({ message: "Este aluguel não existe!" });
+    }
+    if (rentalExists.rows[0].returnDate !== null) {
+      return res.status(400).send({ message: "O aluguel já foi finalizado!" });
+    }
+    await connection.query("DELETE FROM rentals WHERE id = $1;", [id]);
+    res.sendStatus(200);
   } catch (err) {
     console.log(err);
     res.sendStatus(500);
