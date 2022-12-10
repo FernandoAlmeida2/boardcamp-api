@@ -11,7 +11,7 @@ export function customerMiddleware(req, res, next) {
     return res.status(400).send(errorsList);
   }
   if(!dayjs(body.birthday, 'YYYY-MM-DD', true).isValid()){
-    return res.status(400).send({ message: "Data informada não é válida!" });
+    return res.status(400).send({ message: "A data informada não é válida!" });
   };
   next();
 }

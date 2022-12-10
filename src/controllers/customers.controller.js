@@ -24,7 +24,7 @@ export async function getCustomer(req, res) {
         "SELECT * FROM customers WHERE id = $1;",
         [id]
       );
-      if(customer.rowCount.length === 0){
+      if(customer.rows.length === 0){
         return res.status(404).send({ message: "O cliente não existe!" })
       }
     res.send(customer.rows[0]);

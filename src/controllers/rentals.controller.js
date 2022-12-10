@@ -6,7 +6,12 @@ export async function getRentals(req, res) {
   const rentalsList = [];
   let rentals;
   try {
-    if (customerId)
+    if (customerId && gameId)
+      rentals = await connection.query(
+        'SELECT rentals.*, customers.name AS "customerName", games.name AS "gameName", games."categoryId", categories.name AS "categoryName" FROM rentals JOIN customers ON rentals."customerId" = customers.id JOIN games ON games.id = rentals."gameId" JOIN categories ON categories.id = games."categoryId" WHERE "customerId" = $1 AND "gameId" = $2;',
+        [customerId, gameId]
+      );
+    else if (customerId)
       rentals = await connection.query(
         'SELECT rentals.*, customers.name AS "customerName", games.name AS "gameName", games."categoryId", categories.name AS "categoryName" FROM rentals JOIN customers ON rentals."customerId" = customers.id JOIN games ON games.id = rentals."gameId" JOIN categories ON categories.id = games."categoryId" WHERE "customerId" = $1;',
         [customerId]
@@ -30,9 +35,9 @@ export async function getRentals(req, res) {
         returnDate: rental.returnDate,
         originalPrice: rental.originalPrice,
         delayFee: rental.delayFee,
-        customer: { id: customerId, name: rental.customerName },
+        customer: { id: rental.customerId, name: rental.customerName },
         game: {
-          id: gameId,
+          id: rental.gameId,
           name: rental.gameName,
           categoryId: rental.categoryId,
           categoryName: rental.categoryName,
@@ -54,10 +59,10 @@ export async function postRental(req, res) {
       [gameId]
     );
     const gameRentals = await connection.query(
-      'SELECT (id) FROM rentals WHERE "gameId" = $1 AND "returnDate" = $2;',
-      [gameId, null]
+      'SELECT (id) FROM rentals WHERE "gameId" = $1 AND "returnDate" is NULL;',
+      [gameId]
     );
-    if (gameInfo.rows[0].stockTotal === gameRentals.rows.length) {
+    if (gameInfo.rows[0].stockTotal <= gameRentals.rows.length) {
       return res
         .status(400)
         .send({ message: "Jogo esgotado para aluguel no momento!" });
@@ -65,8 +70,8 @@ export async function postRental(req, res) {
     const originalPrice = daysRented * gameInfo.rows[0].pricePerDay;
     const rentDate = dayjs().format("YYYY-MM-DD");
     await connection.query(
-      'INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") VALUES ($1, $2, $3, $4, $5, $6, $7);',
-      [customerId, gameId, rentDate, daysRented, null, originalPrice, null]
+      'INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") VALUES ($1, $2, $3, $4, NULL, $5, NULL);',
+      [customerId, gameId, rentDate, daysRented, originalPrice]
     );
     res.sendStatus(201);
   } catch (err) {
@@ -89,10 +94,9 @@ export async function postReturnRental(req, res) {
       return res.status(400).send({ message: "O aluguel já foi finalizado!" });
     }
     const returnDate = dayjs().format("YYYY-MM-DD");
-    const delayedDays = dayjs(returnDate).diff(
-      dayjs(rentalExists.rows[0].rentDate),
-      "day"
-    );
+    const delayedDays =
+      dayjs(returnDate).diff(dayjs(rentalExists.rows[0].rentDate), "day") -
+      rentalExists.rows[0].daysRented;
     let delayFee;
     if (delayedDays <= 0) {
       delayFee = 0;
